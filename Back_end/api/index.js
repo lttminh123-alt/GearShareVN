@@ -4,13 +4,16 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { json } from 'body-parser';
+import serverless from 'serverless-http';
 
 dotenv.config();
 
 const app = express();
 
-// Body parser (Vercel disables it by default if config.api.bodyParser=false)
+// Body parser (Vercel disables it if config.api.bodyParser=false)
+// Parse JSON bodies
 app.use(json({ limit: '10mb' }));
+app.use(bodyParser.json());
 
 // CORS Configuration cho Flutter
 const corsOptions = {
@@ -25,13 +28,13 @@ const corsOptions = {
     'https://your-flutter-app.web.app',
     'exp://*'
   ],
-  credentials: true
+  credentials: true,
 };
 app.use(cors(corsOptions));
 
 // ==================== DATABASE ====================
 
-// MongoDB Connection (reuse global connection to avoid multiple connections on serverless)
+// Reuse global connection to avoid multiple connections on serverless
 let conn = null;
 
 async function connectDB() {
@@ -56,8 +59,10 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
     deployed_on: 'Vercel',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
+
+  res.send('Hello world!');
 });
 
 app.get('/health', (req, res) => {
@@ -65,7 +70,7 @@ app.get('/health', (req, res) => {
     status: 'healthy',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    memory: process.memoryUsage()
+    memory: process.memoryUsage(),
   });
 });
 
@@ -76,20 +81,19 @@ app.get('/api/test', (req, res) => {
     data: {
       server: 'Vercel Serverless',
       region: process.env.VERCEL_REGION || 'unknown',
-      time: new Date().toLocaleString('vi-VN')
-    }
+      time: new Date().toLocaleString('vi-VN'),
+    },
   });
 });
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    await connectDB(); // connect DB per invocation
-
+    await connectDB();
     const { email, password, name } = req.body;
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      data: { id: 'temp_id', email, name }
+      data: { id: 'temp_id', email, name },
     });
   } catch (err) {
     console.error(err);
@@ -100,13 +104,12 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     await connectDB();
-
     const { email, password } = req.body;
     res.json({
       success: true,
       message: 'Login successful',
       token: 'jwt_token_here',
-      user: { id: 'user_id', email, name: 'User Name' }
+      user: { id: 'user_id', email, name: 'User Name' },
     });
   } catch (err) {
     console.error(err);
@@ -120,8 +123,8 @@ app.get('/api/products', async (req, res) => {
     success: true,
     data: [
       { id: 1, name: 'Product 1', price: 100 },
-      { id: 2, name: 'Product 2', price: 200 }
-    ]
+      { id: 2, name: 'Product 2', price: 200 },
+    ],
   });
 });
 
@@ -129,7 +132,7 @@ app.get('/api/users/profile', async (req, res) => {
   await connectDB();
   res.json({
     success: true,
-    data: { id: 'user_id', name: 'John Doe', email: 'john@example.com', joined: '2024-01-01' }
+    data: { id: 'user_id', name: 'John Doe', email: 'john@example.com', joined: '2024-01-01' },
   });
 });
 
@@ -144,19 +147,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     success: false,
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
 // ==================== EXPORT FOR VERCEL ====================
 
-export default async function handler(req, res) {
-  await connectDB();
-  return app(req, res);
-}
-
-export const config = {
-  api: {
-    bodyParser: false
-  }
-};
+// Dùng serverless-http
+export default app;
