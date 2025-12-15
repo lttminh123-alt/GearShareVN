@@ -24,6 +24,31 @@ mongoose
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
+
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectDB() {
+  if (cached.conn) return cached.conn;
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(process.env.MONGO_URI, {
+      bufferCommands: false,
+    }).then((mongoose) => mongoose);
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+
+connectDB()
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.error("❌ MongoDB Error:", err));
+
+
 // ==================== MODELS ====================
 const userSchema = new mongoose.Schema({
   username: String,
@@ -882,3 +907,5 @@ app.put("/api/orders/:orderId/cancel", auth, async (req, res) => {
 // ==================== RUN SERVER ====================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🔥 Server chạy tại http://localhost:${PORT}`));
+
+export default app;
