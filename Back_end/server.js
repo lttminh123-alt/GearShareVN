@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 dotenv.config();
 
 // ==================== APP SETUP ====================
+const express = require('express');
 const app = express();
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PATCH", "PUT", "DELETE"] }));
 app.use(express.json());
@@ -914,3 +915,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🔥 Server chạy tại http://localhost:${PORT}`));
 
 export default app;
+module.exports = app;
