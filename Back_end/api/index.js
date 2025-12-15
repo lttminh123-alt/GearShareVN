@@ -3,19 +3,19 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import { json } from 'body-parser';
 import serverless from 'serverless-http';
 
 dotenv.config();
 
 const app = express();
 
-// Body parser (Vercel disables it if config.api.bodyParser=false)
-// Parse JSON bodies
-app.use(json({ limit: '10mb' }));
-app.use(bodyParser.json());
+// ==================== MIDDLEWARE ====================
 
-// CORS Configuration cho Flutter
+// Use Express built-in JSON parser (replaces body-parser)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// CORS Configuration for Flutter/Web
 const corsOptions = {
   origin: [
     'http://localhost:3000',
@@ -34,7 +34,6 @@ app.use(cors(corsOptions));
 
 // ==================== DATABASE ====================
 
-// Reuse global connection to avoid multiple connections on serverless
 let conn = null;
 
 async function connectDB() {
@@ -61,8 +60,6 @@ app.get('/', (req, res) => {
     deployed_on: 'Vercel',
     timestamp: new Date().toISOString(),
   });
-
-  res.send('Hello world!');
 });
 
 app.get('/health', (req, res) => {
@@ -90,6 +87,7 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     await connectDB();
     const { email, password, name } = req.body;
+    // TODO: Implement actual user creation logic
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
@@ -105,6 +103,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     await connectDB();
     const { email, password } = req.body;
+    // TODO: Implement actual login logic
     res.json({
       success: true,
       message: 'Login successful',
@@ -153,5 +152,7 @@ app.use((err, req, res, next) => {
 
 // ==================== EXPORT FOR VERCEL ====================
 
-// Dùng serverless-http
 export default app;
+
+// For local testing only
+export const handler = serverless(app);
