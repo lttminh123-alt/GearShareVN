@@ -3,11 +3,14 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import { json } from 'body-parser';
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
+
+// Body parser (Vercel disables it by default if config.api.bodyParser=false)
+app.use(json({ limit: '10mb' }));
 
 // CORS Configuration cho Flutter
 const corsOptions = {
@@ -22,39 +25,43 @@ const corsOptions = {
     'https://your-flutter-app.web.app',
     'exp://*'
   ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin']
+  credentials: true
 };
-
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// ==================== DATABASE ====================
+
+// MongoDB Connection (reuse global connection to avoid multiple connections on serverless)
+let conn = null;
+
+async function connectDB() {
+  if (conn) return conn;
+
+  if (!process.env.MONGODB_URI) {
+    console.warn('⚠️ MONGODB_URI is not defined');
+    return null;
+  }
+
+  conn = await mongoose.connect(process.env.MONGODB_URI);
+  console.log('✅ Connected to MongoDB');
+  return conn;
+}
 
 // ==================== ROUTES ====================
 
-// Root endpoint
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: '🚀 GearShare Vietnam API',
     status: 'running',
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
     deployed_on: 'Vercel',
-    timestamp: new Date().toISOString(),
-    endpoints: {
-      root: '/',
-      health: '/health',
-      test: '/api/test',
-      auth: '/api/auth/*',
-      users: '/api/users/*'
-    }
+    timestamp: new Date().toISOString()
   });
 });
 
-// Health check (cho monitoring)
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
+  res.status(200).json({
     status: 'healthy',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
@@ -62,9 +69,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Test endpoint
 app.get('/api/test', (req, res) => {
-  res.json({ 
+  res.json({
     success: true,
     message: 'API is working perfectly on Vercel! 🎉',
     data: {
@@ -75,54 +81,41 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Authentication routes
 app.post('/api/auth/register', async (req, res) => {
   try {
+    await connectDB(); // connect DB per invocation
+
     const { email, password, name } = req.body;
-    
-    // TODO: Add your registration logic here
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      data: {
-        id: 'temp_id',
-        email,
-        name
-      }
+      data: { id: 'temp_id', email, name }
     });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, message: err.message });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   try {
+    await connectDB();
+
     const { email, password } = req.body;
-    
-    // TODO: Add your login logic here
     res.json({
       success: true,
       message: 'Login successful',
       token: 'jwt_token_here',
-      user: {
-        id: 'user_id',
-        email,
-        name: 'User Name'
-      }
+      user: { id: 'user_id', email, name: 'User Name' }
     });
-  } catch (error) {
-    res.status(401).json({
-      success: false,
-      message: 'Invalid credentials'
-    });
+  } catch (err) {
+    console.error(err);
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
 });
 
-// Products routes (example)
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
+  await connectDB();
   res.json({
     success: true,
     data: [
@@ -132,42 +125,20 @@ app.get('/api/products', (req, res) => {
   });
 });
 
-// Users routes
-app.get('/api/users/profile', (req, res) => {
-  // TODO: Add authentication middleware
+app.get('/api/users/profile', async (req, res) => {
+  await connectDB();
   res.json({
     success: true,
-    data: {
-      id: 'user_id',
-      name: 'John Doe',
-      email: 'john@example.com',
-      joined: '2024-01-01'
-    }
+    data: { id: 'user_id', name: 'John Doe', email: 'john@example.com', joined: '2024-01-01' }
   });
 });
-
-// ==================== DATABASE ====================
-
-// MongoDB Connection (optional)
-if (process.env.MONGODB_URI) {
-  mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('✅ Connected to MongoDB on Vercel'))
-    .catch(err => console.error('❌ MongoDB error:', err));
-}
 
 // ==================== ERROR HANDLING ====================
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found',
-    path: req.originalUrl,
-    method: req.method
-  });
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'Route not found', path: req.originalUrl });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
   res.status(500).json({
@@ -178,14 +149,14 @@ app.use((err, req, res, next) => {
 });
 
 // ==================== EXPORT FOR VERCEL ====================
-// Đây là phần QUAN TRỌNG cho Vercel Serverless
 
-// Export app as serverless function
-export default app;
+export default async function handler(req, res) {
+  await connectDB();
+  return app(req, res);
+}
 
-// Hoặc export handler cho Vercel
 export const config = {
   api: {
-    bodyParser: false, // Disable body parsing để handle file uploads
-  },
+    bodyParser: false
+  }
 };
