@@ -19,10 +19,11 @@ const __dirname = path.dirname(__filename);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ==================== DATABASE ====================
-mongoose
-  .connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/mydb")
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.error("❌ MongoDB Error:", err));
+
+// mongoose
+//   .connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/mydb")
+//   .then(() => console.log("✅ MongoDB Connected"))
+//   .catch((err) => console.error("❌ MongoDB Error:", err));
 
 
 let cached = global.mongoose;
@@ -226,7 +227,11 @@ async function buildCartForUser(userId) {
 }
 
 // ==================== ROUTES ====================
-app.get("/", (req, res) => res.json({ status: "API OK" }));
+app.get("/", async (req, res) => {
+  await connectDB();
+  res.json({ status: "API OK" });
+});
+
 
 // ==================== REGISTER / LOGIN ====================
 app.post("/api/users/register", async (req, res) => {
